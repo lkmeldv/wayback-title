@@ -84,6 +84,11 @@ function waybackApp() {
             return `${day}/${month}/${year}`;
         },
 
+        getWaybackUrl(timestamp, originalUrl) {
+            // Generate standard Wayback Machine URL (not id_ mode for viewing)
+            return `https://web.archive.org/web/${timestamp}/${originalUrl}`;
+        },
+
         exportJSON() {
             const data = JSON.stringify(this.results, null, 2);
             this.downloadFile(data, 'wayback-results.json', 'application/json');

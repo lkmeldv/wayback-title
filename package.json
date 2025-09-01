@@ -1,0 +1,16 @@
+{
+  "name": "wayback-cdx-extractor",
+  "version": "1.0.0",
+  "description": "Extract last snapshots metadata (title, meta, canonical, OG...) from Wayback CDX",
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "start": "node wayback-last.mjs linkuma.com",
+    "last5": "node wayback-last.mjs linkuma.com --n 5",
+    "last5-unique": "node wayback-last.mjs linkuma.com --n 5 --unique"
+  },
+  "dependencies": {
+    "cheerio": "^1.0.0-rc.12",
+    "node-fetch": "^3.3.2"
+  }
+}

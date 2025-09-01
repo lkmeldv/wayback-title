@@ -94,7 +94,73 @@ async function extractFromSnapshot(snapUrl) {
     return { title, description, canonical, robots, og_title: ogTitle, og_description: ogDesc, h1_count };
 }
 
-async function processDomain(domain, n, unique) {
+async function analyzeWithPerplexity(title, description, domain, apiKey) {
+    if (!apiKey || !title) return null;
+    
+    try {
+        const prompt = `Analyze this website based on its title and description, then categorize it:
+
+Title: "${title}"
+Description: "${description || 'N/A'}"
+Domain: ${domain}
+
+Categorize this site into ONE of these categories:
+- Clean: Professional, legitimate business or informational sites
+- Casino/Jeux: Gambling, betting, casino sites
+- Contenu adulte: Adult content, dating, explicit material
+- Pharma/Santé: Pharmacy, medication, health supplements (often suspicious)
+- Finance suspect: Crypto, forex trading, payday loans, get-rich schemes
+- Contrefaçon: Fake designer goods, replica products
+- Piratage: Software cracks, keygens, pirated content
+- Spam générique: Generic spam with clickbait titles
+- E-commerce: Legitimate online stores, shopping sites
+- Blog/Info: Blogs, news, informational content
+- Tech: Technology, software, development sites
+- Actualités: News, media sites
+
+Focus on detecting spam/suspicious content. Respond with ONLY the category name (e.g., "Clean" or "Casino/Jeux").`;
+
+        const response = await fetch('https://api.perplexity.ai/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${apiKey}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                model: 'llama-3.1-sonar-small-128k-online',
+                messages: [
+                    {
+                        role: 'user',
+                        content: prompt
+                    }
+                ],
+                temperature: 0.1,
+                max_tokens: 50
+            })
+        });
+
+        if (!response.ok) {
+            console.error(`Perplexity API error: ${response.status}`);
+            return null;
+        }
+
+        const data = await response.json();
+        const category = data.choices?.[0]?.message?.content?.trim();
+        
+        // Validate category
+        const validCategories = [
+            'Clean', 'Casino/Jeux', 'Contenu adulte', 'Pharma/Santé', 'Finance suspect', 
+            'Contrefaçon', 'Piratage', 'Spam générique', 'E-commerce', 'Blog/Info', 'Tech', 'Actualités'
+        ];
+        return validCategories.includes(category) ? category : 'Spam/Suspect';
+        
+    } catch (error) {
+        console.error('Perplexity analysis error:', error);
+        return null;
+    }
+}
+
+async function processDomain(domain, n, unique, analyzeContent = false, apiKey = null) {
     const rows = await getCdxRows(domain, n, unique);
 
     if (!rows.length) {
@@ -106,7 +172,7 @@ async function processDomain(domain, n, unique) {
         const snap = makeIdUrl(row.timestamp, row.original);
         try {
             const parsed = await extractFromSnapshot(snap);
-            snapshots.push({
+            const snapshot = {
                 timestamp: row.timestamp,
                 snapshot: snap,
                 original: row.original,
@@ -120,7 +186,19 @@ async function processDomain(domain, n, unique) {
                 og_title: parsed.og_title,
                 og_description: parsed.og_description,
                 h1_count: parsed.h1_count,
-            });
+            };
+
+            // Add AI analysis if requested
+            if (analyzeContent && apiKey && parsed.title) {
+                const category = await analyzeWithPerplexity(parsed.title, parsed.description, domain, apiKey);
+                if (category) {
+                    snapshot.category = category;
+                }
+                // Small delay between AI calls
+                await sleep(500);
+            }
+
+            snapshots.push(snapshot);
         } catch (e) {
             snapshots.push({
                 timestamp: row.timestamp,
@@ -147,7 +225,7 @@ async function processDomain(domain, n, unique) {
 
 // API endpoint for bulk extraction
 app.post('/api/extract', async (req, res) => {
-    const { domains, n = 5, unique = false } = req.body;
+    const { domains, n = 5, unique = false, analyzeContent = false, apiKey = null } = req.body;
 
     if (!domains || !Array.isArray(domains)) {
         return res.status(400).json({ error: 'Domains array is required' });
@@ -162,7 +240,7 @@ app.post('/api/extract', async (req, res) => {
             res.write(JSON.stringify({ type: 'progress', domain }) + '\n');
 
             // Process domain
-            const result = await processDomain(domain.trim(), n, unique);
+            const result = await processDomain(domain.trim(), n, unique, analyzeContent, apiKey);
             
             // Send result
             res.write(JSON.stringify({ type: 'result', data: result }) + '\n');

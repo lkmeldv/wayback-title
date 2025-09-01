@@ -151,6 +151,28 @@ MIT
 
 ## 📝 Changelog
 
+### v1.2.0 - 2025-01-09
+#### 🚀 Nouvelles fonctionnalités majeures
+- **Interface deux colonnes** : Classification automatique Sites Propres vs Sites Spam
+- **Détection spam avancée** : 7 catégories (Casino/Jeux, Contenu adulte, Pharma/Santé, Finance suspect, Contrefaçon, Piratage, Spam générique)
+- **Import CSV** : Upload de fichiers pour traitement en masse
+- **API Perplexity optionnelle** : Analyse IA pour catégorisation automatique
+- **Format cartes** : Affichage moderne avec badges colorés et liens directs
+
+#### 🔧 Améliorations techniques
+- **Détection locale intelligente** : Plus de 80 mots-clés spam + patterns légitimes
+- **Matching précis** : Évite les faux positifs (ex: foot.fr)
+- **Interface conditionnelle** : Fonctionne avec ou sans API key
+- **Stats temps réel** : Compteurs Sites Propres/Spam
+- **Gestion d'erreurs robuste** : Classification même en cas d'échec IA
+
+#### 🎨 Interface utilisateur
+- Design deux colonnes responsive
+- Onglets saisie manuelle/CSV
+- Configuration API masquable
+- Badges colorés par catégorie spam
+- Liens cliquables vers captures Wayback
+
 ### v1.1.0 - 2025-01-09
 #### ✨ Ajouts
 - Interface web moderne avec design responsive
@@ -160,6 +182,7 @@ MIT
 - Serveur Express avec API streaming
 - Support Alpine.js et Tailwind CSS
 - Gestion d'erreurs améliorée avec affichage utilisateur
+- Liens cliquables vers captures Wayback
 
 #### 🔧 Modifications
 - Mise à jour package.json avec nouvelles dépendances

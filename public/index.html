@@ -12,14 +12,116 @@
         <!-- Header -->
         <div class="text-center mb-8">
             <h1 class="text-4xl font-bold text-gray-800 mb-2">Wayback Title Extractor</h1>
-            <p class="text-gray-600 text-lg">Extractez les titres et métadonnées de vos domaines via Wayback Machine</p>
+            <p class="text-gray-600 text-lg">Extractez les titres et métadonnées avec analyse IA automatique</p>
+        </div>
+
+        <!-- API Configuration Section -->
+        <div class="bg-white rounded-2xl shadow-lg p-6 mb-8" x-show="!apiKey && showApiConfig">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-xl font-bold text-gray-800 flex items-center">
+                    <svg class="w-6 h-6 mr-2 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-3.586l6.879-6.88a6 6 0 018.242 8.242zM6 9h2v2H6V9z"></path>
+                    </svg>
+                    Configuration Perplexity AI
+                </h2>
+                <span class="px-3 py-1 bg-blue-100 text-blue-800 text-sm font-medium rounded-full">
+                    Optionnel
+                </span>
+            </div>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">
+                        Clé API Perplexity
+                    </label>
+                    <div class="flex space-x-3">
+                        <input 
+                            type="password" 
+                            x-model="apiKeyInput"
+                            placeholder="pplx-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                            class="flex-1 px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        >
+                        <button 
+                            @click="saveApiKey()"
+                            :disabled="!apiKeyInput.trim()"
+                            class="px-6 py-3 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 text-white font-semibold rounded-xl transition-colors"
+                        >
+                            Enregistrer
+                        </button>
+                    </div>
+                </div>
+                <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <div class="flex items-start">
+                        <svg class="w-5 h-5 text-blue-600 mt-0.5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        <div class="text-sm text-blue-700">
+                            <p class="font-medium mb-1">Obtenir votre clé API :</p>
+                            <p>1. Visitez <a href="https://www.perplexity.ai/settings/api" target="_blank" class="underline hover:text-blue-800">perplexity.ai/settings/api</a></p>
+                            <p>2. Créez une nouvelle clé API</p>
+                            <p>3. Copiez-collez la clé ci-dessus</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- API Status & Toggle -->
+        <div class="flex items-center justify-between mb-6">
+            <div x-show="apiKey" class="flex items-center text-green-700 bg-green-50 border border-green-200 rounded-lg px-4 py-2">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                <span class="font-medium">Perplexity AI activé</span>
+                <button 
+                    @click="clearApiKey()"
+                    class="ml-3 px-2 py-1 text-xs text-red-600 hover:text-red-700 underline"
+                >
+                    Supprimer
+                </button>
+            </div>
+            
+            <div x-show="!apiKey">
+                <button 
+                    @click="showApiConfig = !showApiConfig"
+                    class="flex items-center px-4 py-2 bg-purple-100 hover:bg-purple-200 text-purple-700 text-sm font-medium rounded-lg transition-colors"
+                >
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-3.586l6.879-6.88a6 6 0 018.242 8.242zM6 9h2v2H6V9z"></path>
+                    </svg>
+                    <span x-text="showApiConfig ? 'Masquer config AI' : 'Configurer Perplexity AI'"></span>
+                </button>
+            </div>
         </div>
 
         <!-- Input Section -->
         <div class="bg-white rounded-2xl shadow-lg p-6 mb-8">
+            <!-- Input Method Tabs -->
+            <div class="flex space-x-1 mb-6 bg-gray-100 rounded-lg p-1">
+                <button 
+                    @click="inputMethod = 'manual'"
+                    :class="inputMethod === 'manual' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-600'"
+                    class="flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors"
+                >
+                    <svg class="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                    </svg>
+                    Saisie manuelle
+                </button>
+                <button 
+                    @click="inputMethod = 'csv'"
+                    :class="inputMethod === 'csv' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-600'"
+                    class="flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors"
+                >
+                    <svg class="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                    Import CSV
+                </button>
+            </div>
+
             <div class="grid md:grid-cols-2 gap-6">
-                <!-- Domain Input -->
-                <div>
+                <!-- Manual Domain Input -->
+                <div x-show="inputMethod === 'manual'">
                     <label class="block text-sm font-semibold text-gray-700 mb-2">
                         Domaines (un par ligne)
                     </label>
@@ -29,6 +131,32 @@
                         class="w-full h-32 px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
                         :disabled="processing"
                     ></textarea>
+                </div>
+
+                <!-- CSV Upload -->
+                <div x-show="inputMethod === 'csv'">
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">
+                        Fichier CSV
+                    </label>
+                    <div class="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center hover:border-gray-400 transition-colors">
+                        <input 
+                            type="file" 
+                            accept=".csv"
+                            @change="handleCsvUpload($event)"
+                            class="hidden"
+                            id="csvInput"
+                        >
+                        <label for="csvInput" class="cursor-pointer">
+                            <svg class="mx-auto h-12 w-12 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                            </svg>
+                            <p class="text-sm text-gray-600">
+                                <span class="font-medium text-blue-600">Cliquez pour uploader</span>
+                                <br>ou glissez-déposez votre fichier CSV
+                            </p>
+                            <p class="text-xs text-gray-400 mt-2" x-show="csvFile" x-text="csvFile?.name"></p>
+                        </label>
+                    </div>
                 </div>
 
                 <!-- Options -->
@@ -57,6 +185,31 @@
                         <label for="unique" class="text-sm font-medium text-gray-700">
                             Captures uniques seulement
                         </label>
+                    </div>
+                    <div class="border-t border-gray-200 pt-4">
+                        <label class="block text-sm font-semibold text-gray-700 mb-3">
+                            <svg class="w-4 h-4 inline mr-1 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+                            </svg>
+                            Analyse IA
+                        </label>
+                        <div class="flex items-center space-x-3 mb-3">
+                            <input 
+                                type="checkbox" 
+                                id="analyzeContent" 
+                                x-model="analyzeContent"
+                                class="w-5 h-5 text-purple-600 rounded focus:ring-purple-500"
+                                :disabled="processing"
+                            >
+                            <label for="analyzeContent" class="text-sm font-medium text-gray-700">
+                                Catégoriser les sites (Clean/Spam)
+                            </label>
+                        </div>
+                        <div x-show="analyzeContent" class="bg-purple-50 border border-purple-200 rounded-lg p-3">
+                            <p class="text-xs text-purple-700">
+                                Permet de détecter à l'aide de l'IA des sites spam, adulte, casino, etc...
+                            </p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -103,9 +256,9 @@
         </div>
 
         <!-- Results Section -->
-        <div x-show="results.length > 0" class="bg-white rounded-2xl shadow-lg p-6">
+        <div x-show="results.length > 0">
             <div class="flex justify-between items-center mb-6">
-                <h2 class="text-xl font-bold text-gray-800">Résultats</h2>
+                <h2 class="text-2xl font-bold text-gray-800">Analyse des Sites</h2>
                 <div class="flex space-x-3">
                     <button 
                         @click="exportJSON()"
@@ -122,59 +275,116 @@
                 </div>
             </div>
 
-            <!-- Results Grid -->
-            <div class="space-y-6">
-                <template x-for="(domainResult, index) in results" :key="index">
-                    <div class="border border-gray-200 rounded-xl p-4">
-                        <div class="flex items-center justify-between mb-3">
-                            <h3 class="text-lg font-semibold text-gray-800" x-text="domainResult.domain"></h3>
-                            <span class="px-3 py-1 bg-blue-100 text-blue-800 text-sm font-medium rounded-full">
-                                <span x-text="domainResult.snapshots.length"></span> captures
-                            </span>
+            <!-- Stats Summary -->
+            <div class="grid grid-cols-2 gap-4 mb-8">
+                <div class="bg-green-50 border border-green-200 rounded-2xl p-6">
+                    <div class="flex items-center">
+                        <div class="p-3 bg-green-100 rounded-full">
+                            <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
                         </div>
-                        
-                        <div class="overflow-x-auto">
-                            <table class="min-w-full">
-                                <thead>
-                                    <tr class="bg-gray-50">
-                                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Titre</th>
-                                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">H1</th>
-                                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Capture</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <template x-for="snapshot in domainResult.snapshots" :key="snapshot.timestamp">
-                                        <tr class="border-t border-gray-100">
-                                            <td class="px-3 py-2 text-sm text-gray-600" x-text="formatDate(snapshot.timestamp)"></td>
-                                            <td class="px-3 py-2 text-sm text-gray-900 max-w-md">
-                                                <div class="truncate" x-text="snapshot.title || 'Sans titre'"></div>
-                                            </td>
-                                            <td class="px-3 py-2 text-sm text-gray-600" x-text="snapshot.h1_count"></td>
-                                            <td class="px-3 py-2">
-                                                <span class="px-2 py-1 text-xs font-medium rounded-full"
-                                                      :class="snapshot.status === '200' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'"
-                                                      x-text="snapshot.status">
-                                                </span>
-                                            </td>
-                                            <td class="px-3 py-2">
-                                                <a :href="getWaybackUrl(snapshot.timestamp, snapshot.original)" 
-                                                   target="_blank"
-                                                   class="inline-flex items-center px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded transition-colors">
-                                                    <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
-                                                    </svg>
-                                                    Voir
-                                                </a>
-                                            </td>
-                                        </tr>
-                                    </template>
-                                </tbody>
-                            </table>
+                        <div class="ml-4">
+                            <h3 class="text-lg font-semibold text-green-800">Sites Propres</h3>
+                            <p class="text-2xl font-bold text-green-600" x-text="cleanSites.length"></p>
                         </div>
                     </div>
-                </template>
+                </div>
+                <div class="bg-red-50 border border-red-200 rounded-2xl p-6">
+                    <div class="flex items-center">
+                        <div class="p-3 bg-red-100 rounded-full">
+                            <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"></path>
+                            </svg>
+                        </div>
+                        <div class="ml-4">
+                            <h3 class="text-lg font-semibold text-red-800">Sites Spam</h3>
+                            <p class="text-2xl font-bold text-red-600" x-text="spamSites.length"></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Two Column Layout -->
+            <div class="grid lg:grid-cols-2 gap-8">
+                <!-- Clean Sites Column -->
+                <div class="space-y-4">
+                    <h3 class="text-xl font-semibold text-green-800 flex items-center">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        Sites Propres (<span x-text="cleanSites.length"></span>)
+                    </h3>
+                    <div class="space-y-3">
+                        <template x-for="domain in cleanSites" :key="domain.domain">
+                            <div class="bg-white border border-green-200 rounded-xl p-4 hover:shadow-md transition-shadow">
+                                <div class="flex items-start justify-between mb-2">
+                                    <h4 class="font-semibold text-gray-900" x-text="domain.domain"></h4>
+                                    <span class="px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded-full" 
+                                          x-text="domain.snapshots.length + ' captures'"></span>
+                                </div>
+                                <div class="space-y-2">
+                                    <template x-for="snapshot in domain.snapshots.slice(0, 2)" :key="snapshot.timestamp">
+                                        <div class="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
+                                            <div class="flex-1 min-w-0">
+                                                <p class="text-sm font-medium text-gray-900 truncate" 
+                                                   x-text="snapshot.title || 'Sans titre'"></p>
+                                                <p class="text-xs text-gray-500" x-text="formatDate(snapshot.timestamp)"></p>
+                                            </div>
+                                            <a :href="getWaybackUrl(snapshot.timestamp, snapshot.original)" 
+                                               target="_blank"
+                                               class="ml-2 px-2 py-1 bg-blue-500 hover:bg-blue-600 text-white text-xs rounded transition-colors">
+                                                Voir
+                                            </a>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- Spam Sites Column -->
+                <div class="space-y-4">
+                    <h3 class="text-xl font-semibold text-red-800 flex items-center">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"></path>
+                        </svg>
+                        Sites Spam (<span x-text="spamSites.length"></span>)
+                    </h3>
+                    <div class="space-y-3">
+                        <template x-for="domain in spamSites" :key="domain.domain">
+                            <div class="bg-white border border-red-200 rounded-xl p-4 hover:shadow-md transition-shadow">
+                                <div class="flex items-start justify-between mb-2">
+                                    <h4 class="font-semibold text-gray-900" x-text="domain.domain"></h4>
+                                    <div class="flex items-center space-x-2">
+                                        <span :class="getSpamCategoryStyle(domain.spamCategory)" 
+                                              class="px-2 py-1 text-xs font-medium rounded-full" 
+                                              x-text="domain.spamCategory"></span>
+                                        <span class="px-2 py-1 bg-gray-100 text-gray-600 text-xs font-medium rounded-full" 
+                                              x-text="domain.snapshots.length + ' captures'"></span>
+                                    </div>
+                                </div>
+                                <div class="space-y-2">
+                                    <template x-for="snapshot in domain.snapshots.slice(0, 2)" :key="snapshot.timestamp">
+                                        <div class="flex items-center justify-between p-2 bg-red-50 rounded-lg">
+                                            <div class="flex-1 min-w-0">
+                                                <p class="text-sm font-medium text-gray-900 truncate" 
+                                                   x-text="snapshot.title || 'Sans titre'"></p>
+                                                <p class="text-xs text-gray-500" x-text="formatDate(snapshot.timestamp)"></p>
+                                            </div>
+                                            <a :href="getWaybackUrl(snapshot.timestamp, snapshot.original)" 
+                                               target="_blank"
+                                               class="ml-2 px-2 py-1 bg-red-500 hover:bg-red-600 text-white text-xs rounded transition-colors">
+                                                Voir
+                                            </a>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
             </div>
         </div>
 

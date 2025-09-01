@@ -15,10 +15,22 @@ function waybackApp() {
         apiKeyInput: '',
         
         // New features
+        activeTab: 'extract',
         inputMethod: 'manual',
         csvFile: null,
         analyzeContent: false,
         showApiConfig: false,
+        
+        // Custom keywords
+        customKeywords: JSON.parse(localStorage.getItem('custom_keywords') || '[]'),
+        newKeywords: '',
+        
+        
+        // URL Discovery variables
+        selectedDomain: '',
+        discoveredUrls: [],
+        urlsLoading: false,
+        urlError: '',
         
         // Computed properties for site classification
         get cleanSites() {
@@ -145,38 +157,42 @@ function waybackApp() {
             }
         },
 
-        // Spam detection keywords (comprehensive list)
-        spamKeywords: [
-            // Casino & Gambling
-            'casino', 'poker', 'jackpot', 'slots', 'roulette', 'blackjack', 'bingo', 'lottery',
-            'gambling', 'betting', 'wager', 'odds', 'bookmaker', 'sportsbook', 'bet365',
-            'spin', 'fortune', 'lucky', 'vegas', 'monte carlo',
+        // Get combined spam keywords (default + custom)
+        get allSpamKeywords() {
+            const defaultKeywords = [
+                // Casino & Gambling
+                'casino', 'poker', 'jackpot', 'slots', 'roulette', 'blackjack', 'bingo', 'lottery',
+                'gambling', 'betting', 'wager', 'odds', 'bookmaker', 'sportsbook', 'bet365',
+                'spin', 'fortune', 'lucky', 'vegas', 'monte carlo',
+                
+                // Adult content
+                'adult', 'porn', 'xxx', 'explicit', 'nude', 'naked', 'escort', 'erotic',
+                'milf', 'amateur', 'webcam', 'hookup', 'fetish', 'nsfw',
+                
+                // Pharmacy & Health scams
+                'viagra', 'cialis', 'levitra', 'pharmacy', 'prescription', 'pills', 'medication',
+                'weight loss', 'diet pills', 'slim', 'fat burner', 'supplement',
+                
+                // Finance scams
+                'crypto', 'bitcoin', 'forex', 'trading', 'investment', 'loan', 'credit',
+                'payday', 'debt', 'mortgage', 'insurance', 'binary options', 'get rich',
+                'make money fast', 'earn from home',
+                
+                // Fake products
+                'replica', 'fake', 'counterfeit', 'cheap', 'discount', 'wholesale',
+                'designer', 'luxury', 'rolex', 'gucci', 'louis vuitton',
+                
+                // Tech scams
+                'hack', 'crack', 'keygen', 'serial', 'activation', 'license key',
+                'torrent', 'download', 'free software', 'pirate',
+                
+                // General spam indicators
+                'click here', 'limited time', 'act now', 'urgent', 'exclusive offer',
+                'guaranteed', 'risk free', 'no obligation', 'winner', 'congratulations'
+            ];
             
-            // Adult content
-            'adult', 'porn', 'xxx', 'explicit', 'nude', 'naked', 'escort', 'erotic',
-            'milf', 'amateur', 'webcam', 'hookup', 'fetish', 'nsfw',
-            
-            // Pharmacy & Health scams
-            'viagra', 'cialis', 'levitra', 'pharmacy', 'prescription', 'pills', 'medication',
-            'weight loss', 'diet pills', 'slim', 'fat burner', 'supplement',
-            
-            // Finance scams
-            'crypto', 'bitcoin', 'forex', 'trading', 'investment', 'loan', 'credit',
-            'payday', 'debt', 'mortgage', 'insurance', 'binary options', 'get rich',
-            'make money fast', 'earn from home',
-            
-            // Fake products
-            'replica', 'fake', 'counterfeit', 'cheap', 'discount', 'wholesale',
-            'designer', 'luxury', 'rolex', 'gucci', 'louis vuitton',
-            
-            // Tech scams
-            'hack', 'crack', 'keygen', 'serial', 'activation', 'license key',
-            'torrent', 'download', 'free software', 'pirate',
-            
-            // General spam indicators
-            'click here', 'limited time', 'act now', 'urgent', 'exclusive offer',
-            'guaranteed', 'risk free', 'no obligation', 'winner', 'congratulations'
-        ],
+            return [...defaultKeywords, ...this.customKeywords];
+        },
 
         // Detect if domain is spam based on title, description, and domain name
         isSpamDomain(domainResult) {
@@ -189,7 +205,7 @@ function waybackApp() {
             }
             
             // Check domain name for spam indicators (more precise matching)
-            for (const keyword of this.spamKeywords) {
+            for (const keyword of this.allSpamKeywords) {
                 if (this.matchesSpamKeyword(domain, keyword)) {
                     domainResult.spamCategory = this.categorizeSpam(keyword);
                     return true;
@@ -202,7 +218,7 @@ function waybackApp() {
                 const description = (snapshot.description || '').toLowerCase();
                 const text = title + ' ' + description;
                 
-                for (const keyword of this.spamKeywords) {
+                for (const keyword of this.allSpamKeywords) {
                     if (this.matchesSpamKeyword(text, keyword)) {
                         domainResult.spamCategory = this.categorizeSpam(keyword);
                         return true;
@@ -292,6 +308,60 @@ function waybackApp() {
             return styles[category] || 'bg-red-100 text-red-800';
         },
 
+        // Custom keywords management
+        addCustomKeywords() {
+            if (!this.newKeywords.trim()) return;
+            
+            const keywords = this.newKeywords.split(',')
+                .map(k => k.trim().toLowerCase())
+                .filter(k => k.length > 0 && !this.customKeywords.includes(k));
+            
+            this.customKeywords.push(...keywords);
+            localStorage.setItem('custom_keywords', JSON.stringify(this.customKeywords));
+            this.newKeywords = '';
+        },
+
+        removeCustomKeyword(index) {
+            this.customKeywords.splice(index, 1);
+            localStorage.setItem('custom_keywords', JSON.stringify(this.customKeywords));
+        },
+
+        clearCustomKeywords() {
+            this.customKeywords = [];
+            localStorage.removeItem('custom_keywords');
+        },
+
+        // Age-based badges
+        getAgeBadgeStyle(timestamp) {
+            const age = this.getArchiveAge(timestamp);
+            if (age <= 12) return 'bg-green-100 text-green-800'; // Vert: moins d'1 an
+            if (age <= 24) return 'bg-orange-100 text-orange-800'; // Orange: année dernière
+            return 'bg-red-100 text-red-800'; // Rouge: plus de 18 mois
+        },
+
+        getAgeLabel(timestamp) {
+            const age = this.getArchiveAge(timestamp);
+            if (age <= 12) return 'Récent';
+            if (age <= 24) return 'Ancien';
+            return 'Très ancien';
+        },
+
+        getArchiveAge(timestamp) {
+            if (!timestamp || timestamp.length < 8) return 999;
+            
+            const year = parseInt(timestamp.substr(0, 4));
+            const month = parseInt(timestamp.substr(4, 2));
+            const day = parseInt(timestamp.substr(6, 2));
+            
+            const archiveDate = new Date(year, month - 1, day);
+            const now = new Date();
+            const diffTime = Math.abs(now - archiveDate);
+            const diffMonths = Math.ceil(diffTime / (1000 * 60 * 60 * 24 * 30.44));
+            
+            return diffMonths;
+        },
+
+
         exportJSON() {
             const data = JSON.stringify(this.results, null, 2);
             this.downloadFile(data, 'wayback-results.json', 'application/json');
@@ -333,6 +403,77 @@ function waybackApp() {
             const a = document.createElement('a');
             a.href = url;
             a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+        },
+
+        // URL Discovery functions
+        async discoverUrls(domain) {
+            if (!domain.trim()) return;
+            
+            this.urlsLoading = true;
+            this.urlError = '';
+            this.discoveredUrls = [];
+
+            try {
+                const response = await fetch(`/api/discover-urls/${encodeURIComponent(domain.trim())}`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const data = await response.json();
+                this.discoveredUrls = data.urls || [];
+                
+                if (this.discoveredUrls.length === 0) {
+                    this.urlError = 'Aucune URL trouvée dans les archives Wayback';
+                }
+            } catch (error) {
+                console.error('Erreur découverte URLs:', error);
+                this.urlError = `Erreur: ${error.message}`;
+            } finally {
+                this.urlsLoading = false;
+            }
+        },
+
+        async copyUrls() {
+            if (this.discoveredUrls.length === 0) return;
+            
+            const urlsText = this.discoveredUrls.map(url => url.original).join('\n');
+            
+            try {
+                await navigator.clipboard.writeText(urlsText);
+                // Show success feedback
+                const button = event.target;
+                const originalText = button.textContent;
+                button.textContent = '✅ Copié !';
+                
+                setTimeout(() => {
+                    button.textContent = originalText;
+                }, 2000);
+            } catch (err) {
+                console.error('Erreur copie URLs:', err);
+            }
+        },
+
+        downloadUrls() {
+            if (this.discoveredUrls.length === 0) return;
+            
+            const urlsText = this.discoveredUrls.map(url => 
+                `${url.original}\t${url.timestamp}\t${url.snapshot}`
+            ).join('\n');
+            
+            const header = 'URL\tTimestamp\tSnapshot\n';
+            const content = header + urlsText;
+            
+            const blob = new Blob([content], { type: 'text/plain' });
+            const url = window.URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `urls_${this.selectedDomain}_${new Date().toISOString().split('T')[0]}.txt`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);

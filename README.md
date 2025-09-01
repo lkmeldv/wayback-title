@@ -151,6 +151,29 @@ MIT
 
 ## 📝 Changelog
 
+### v1.3.0 - 2025-09-01
+#### 🚀 Fonctionnalités majeures
+- **Onglet URLs dédiée** : Interface séparée pour découverte d'URLs Wayback
+- **Performance optimisée** : Extraction ultra-rapide des métadonnées seulement
+- **Architecture simplifiée** : Suppression des fonctionnalités de contenu HTML complexes
+
+#### 🔧 Améliorations techniques
+- **API URLs discovery** : Endpoint `/api/discover-urls/:domain` pour récupérer jusqu'à 1000 URLs
+- **Interface 3 onglets** : Extraction, URLs, Paramètres
+- **Code refactorisé** : Suppression du code legacy pour extraction de contenu
+- **Navigation améliorée** : Onglets intuitifs avec icônes SVG
+
+#### 🎨 Interface utilisateur
+- **Onglet URLs** : Recherche par domaine avec table des résultats
+- **Fonctions export URLs** : Copier toutes les URLs ou télécharger en .txt
+- **Interface épurée** : Suppression des modals complexes
+- **Performance affichée** : Messages informatifs sur la vitesse d'extraction
+
+#### ⚡ Performance
+- **Extraction rapide** : Suppression du parsing HTML complet par défaut
+- **Streaming optimisé** : Meilleure gestion des réponses API
+- **Mémoire réduite** : Architecture allégée sans contenu HTML lourd
+
 ### v1.2.0 - 2025-01-09
 #### 🚀 Nouvelles fonctionnalités majeures
 - **Interface deux colonnes** : Classification automatique Sites Propres vs Sites Spam

@@ -91,8 +91,26 @@ async function extractFromSnapshot(snapUrl) {
     const ogDesc = pick('meta[property="og:description"]');
     const h1_count = $("h1").length;
 
-    return { title, description, canonical, robots, og_title: ogTitle, og_description: ogDesc, h1_count };
+    // Extract complete HTML content for copy-paste reuse
+    // Keep the full HTML but clean up Wayback-specific elements
+    $('script[src*="web.archive.org"]').remove(); // Remove Wayback scripts
+    $('link[href*="web.archive.org"]').remove(); // Remove Wayback styles
+    $('.wb-autocomplete-suggestions').remove(); // Remove Wayback suggestions
+    $('#wm-ipp-base').remove(); // Remove Wayback toolbar
+    $('#donato').remove(); // Remove donation banner
+    $('[id*="wm-"]').remove(); // Remove other Wayback elements
+    
+    return { 
+        title, 
+        description, 
+        canonical, 
+        robots, 
+        og_title: ogTitle, 
+        og_description: ogDesc, 
+        h1_count
+    };
 }
+
 
 async function analyzeWithPerplexity(title, description, domain, apiKey) {
     if (!apiKey || !title) return null;
@@ -188,6 +206,7 @@ async function processDomain(domain, n, unique, analyzeContent = false, apiKey =
                 h1_count: parsed.h1_count,
             };
 
+
             // Add AI analysis if requested
             if (analyzeContent && apiKey && parsed.title) {
                 const category = await analyzeWithPerplexity(parsed.title, parsed.description, domain, apiKey);
@@ -222,6 +241,41 @@ async function processDomain(domain, n, unique, analyzeContent = false, apiKey =
 
     return { domain, snapshots };
 }
+
+// API endpoint for URL discovery
+app.get('/api/discover-urls/:domain', async (req, res) => {
+    const domain = req.params.domain;
+    
+    try {
+        // Get all URLs for this domain from Wayback CDX
+        const base = new URL("https://web.archive.org/cdx/search/cdx");
+        base.searchParams.set("url", domain + "/*");
+        base.searchParams.set("output", "json");
+        base.searchParams.append("filter", "mimetype:text/html");
+        base.searchParams.append("filter", "statuscode:200");
+        base.searchParams.set("fl", "timestamp,original");
+        base.searchParams.set("limit", "1000"); // Get up to 1000 URLs
+        base.searchParams.set("collapse", "urlkey"); // Deduplicate by URL
+        
+        const response = await fetchRetry(base.toString());
+        const json = await response.json();
+        
+        // Skip header row and format results
+        const urls = json.slice(1).map(row => ({
+            timestamp: row[0],
+            original: row[1],
+            snapshot: makeIdUrl(row[0], row[1])
+        }));
+        
+        res.json({ domain, urls });
+    } catch (error) {
+        console.error(`Error discovering URLs for ${domain}:`, error);
+        res.status(500).json({ 
+            error: `Erreur lors de la découverte d'URLs pour ${domain}: ${error.message}` 
+        });
+    }
+});
+
 
 // API endpoint for bulk extraction
 app.post('/api/extract', async (req, res) => {

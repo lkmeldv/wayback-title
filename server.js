@@ -10,6 +10,18 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// CORS support for API usage
+app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+    if (req.method === 'OPTIONS') {
+        res.sendStatus(200);
+    } else {
+        next();
+    }
+});
+
 app.use(express.json());
 app.use(express.static('public'));
 
@@ -78,7 +90,10 @@ function makeIdUrl(timestamp, original) {
 }
 
 async function extractFromSnapshot(snapUrl) {
-    const htmlRes = await fetchRetry(snapUrl);
+    const htmlRes = await fetchRetry(snapUrl, {
+        // Optimize for faster requests
+        timeout: 10000, // 10 second timeout
+    });
     const html = await htmlRes.text();
     const $ = cheerio.load(html);
 
@@ -185,8 +200,8 @@ async function processDomain(domain, n, unique, analyzeContent = false, apiKey =
         return { domain, snapshots: [] };
     }
 
-    const snapshots = [];
-    for (const row of rows) {
+    // Extract all snapshots in parallel for better performance
+    const snapshotPromises = rows.map(async (row) => {
         const snap = makeIdUrl(row.timestamp, row.original);
         try {
             const parsed = await extractFromSnapshot(snap);
@@ -206,20 +221,21 @@ async function processDomain(domain, n, unique, analyzeContent = false, apiKey =
                 h1_count: parsed.h1_count,
             };
 
-
             // Add AI analysis if requested
             if (analyzeContent && apiKey && parsed.title) {
-                const category = await analyzeWithPerplexity(parsed.title, parsed.description, domain, apiKey);
-                if (category) {
-                    snapshot.category = category;
+                try {
+                    const category = await analyzeWithPerplexity(parsed.title, parsed.description, domain, apiKey);
+                    if (category) {
+                        snapshot.category = category;
+                    }
+                } catch (aiError) {
+                    console.error('AI analysis error:', aiError);
                 }
-                // Small delay between AI calls
-                await sleep(500);
             }
 
-            snapshots.push(snapshot);
+            return snapshot;
         } catch (e) {
-            snapshots.push({
+            return {
                 timestamp: row.timestamp,
                 snapshot: snap,
                 original: row.original,
@@ -234,13 +250,255 @@ async function processDomain(domain, n, unique, analyzeContent = false, apiKey =
                 og_description: "",
                 h1_count: 0,
                 error: String(e.message || e),
-            });
+            };
         }
-        await sleep(150);
-    }
+    });
+
+    // Wait for all snapshots to be processed in parallel
+    const snapshots = await Promise.all(snapshotPromises);
 
     return { domain, snapshots };
 }
+
+// =============================================================================
+// PUBLIC API ENDPOINTS
+// =============================================================================
+
+// GET /api/v1/extract/:domain - Extract metadata for a single domain
+app.get('/api/v1/extract/:domain', async (req, res) => {
+    const { domain } = req.params;
+    const { 
+        snapshots = 5, 
+        unique = false, 
+        analyze = false, 
+        apiKey 
+    } = req.query;
+
+    try {
+        const result = await processDomain(
+            domain, 
+            parseInt(snapshots), 
+            unique === 'true', 
+            analyze === 'true', 
+            apiKey
+        );
+        
+        res.json({
+            success: true,
+            data: result,
+            meta: {
+                domain: domain,
+                snapshots: result.snapshots.length,
+                timestamp: new Date().toISOString()
+            }
+        });
+    } catch (error) {
+        console.error(`API Error for ${domain}:`, error);
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            meta: {
+                domain: domain,
+                timestamp: new Date().toISOString()
+            }
+        });
+    }
+});
+
+// POST /api/v1/extract - Extract metadata for multiple domains
+app.post('/api/v1/extract', async (req, res) => {
+    const { 
+        domains, 
+        snapshots = 5, 
+        unique = false, 
+        analyze = false, 
+        apiKey 
+    } = req.body;
+
+    if (!domains || !Array.isArray(domains)) {
+        return res.status(400).json({
+            success: false,
+            error: 'domains array is required',
+            meta: { timestamp: new Date().toISOString() }
+        });
+    }
+
+    if (domains.length > 50) {
+        return res.status(400).json({
+            success: false,
+            error: 'Maximum 50 domains per request',
+            meta: { timestamp: new Date().toISOString() }
+        });
+    }
+
+    try {
+        const results = [];
+        const errors = [];
+
+        // Process all domains in parallel for better performance
+        const domainPromises = domains.map(async (domain) => {
+            try {
+                const result = await processDomain(domain.trim(), snapshots, unique, analyze, apiKey);
+                results.push(result);
+            } catch (error) {
+                errors.push({
+                    domain: domain.trim(),
+                    error: error.message
+                });
+            }
+        });
+
+        await Promise.all(domainPromises);
+
+        res.json({
+            success: true,
+            data: results,
+            errors: errors,
+            meta: {
+                total_domains: domains.length,
+                successful: results.length,
+                failed: errors.length,
+                timestamp: new Date().toISOString()
+            }
+        });
+    } catch (error) {
+        console.error('API Bulk Error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            meta: { timestamp: new Date().toISOString() }
+        });
+    }
+});
+
+// GET /api/v1/urls/:domain - Get all archived URLs for a domain  
+app.get('/api/v1/urls/:domain', async (req, res) => {
+    const { domain } = req.params;
+    const { limit = 1000 } = req.query;
+
+    try {
+        // Get all URLs for this domain from Wayback CDX
+        const base = new URL("https://web.archive.org/cdx/search/cdx");
+        base.searchParams.set("url", domain + "/*");
+        base.searchParams.set("output", "json");
+        base.searchParams.append("filter", "mimetype:text/html");
+        base.searchParams.append("filter", "statuscode:200");
+        base.searchParams.set("fl", "timestamp,original");
+        base.searchParams.set("limit", limit.toString());
+        base.searchParams.set("collapse", "urlkey");
+        
+        const response = await fetchRetry(base.toString());
+        const json = await response.json();
+        
+        const urls = json.slice(1).map(row => ({
+            timestamp: row[0],
+            url: row[1],
+            archive_url: makeIdUrl(row[0], row[1]),
+            date: new Date(row[0].slice(0,4) + '-' + row[0].slice(4,6) + '-' + row[0].slice(6,8)).toISOString()
+        }));
+        
+        res.json({
+            success: true,
+            data: {
+                domain: domain,
+                urls: urls,
+                total: urls.length
+            },
+            meta: {
+                domain: domain,
+                total_urls: urls.length,
+                timestamp: new Date().toISOString()
+            }
+        });
+    } catch (error) {
+        console.error(`API URLs Error for ${domain}:`, error);
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            meta: {
+                domain: domain,
+                timestamp: new Date().toISOString()
+            }
+        });
+    }
+});
+
+// GET /api/v1/health - Health check endpoint
+app.get('/api/v1/health', (req, res) => {
+    res.json({
+        success: true,
+        status: 'healthy',
+        version: '1.3.0',
+        meta: {
+            uptime: process.uptime(),
+            timestamp: new Date().toISOString(),
+            node_version: process.version
+        }
+    });
+});
+
+// GET /api/v1/docs - API documentation
+app.get('/api/v1/docs', (req, res) => {
+    res.json({
+        name: "Wayback Title Extractor API",
+        version: "1.3.0",
+        description: "Extract metadata and discover URLs from Wayback Machine archives",
+        endpoints: {
+            "GET /api/v1/health": {
+                description: "Health check",
+                parameters: {},
+                example: "/api/v1/health"
+            },
+            "GET /api/v1/extract/:domain": {
+                description: "Extract metadata for a single domain",
+                parameters: {
+                    domain: "Domain to extract (required)",
+                    snapshots: "Number of snapshots to analyze (default: 5, max: 20)",
+                    unique: "Only unique content (true/false, default: false)",
+                    analyze: "Enable AI content analysis (true/false, default: false)",
+                    apiKey: "Perplexity API key for AI analysis (optional)"
+                },
+                example: "/api/v1/extract/example.com?snapshots=3&unique=true"
+            },
+            "POST /api/v1/extract": {
+                description: "Extract metadata for multiple domains",
+                body: {
+                    domains: ["example.com", "test.com"],
+                    snapshots: 5,
+                    unique: false,
+                    analyze: false,
+                    apiKey: "optional_api_key"
+                },
+                limits: "Maximum 50 domains per request"
+            },
+            "GET /api/v1/urls/:domain": {
+                description: "Get all archived URLs for a domain",
+                parameters: {
+                    domain: "Domain to search (required)",
+                    limit: "Maximum URLs to return (default: 1000)"
+                },
+                example: "/api/v1/urls/example.com?limit=100"
+            }
+        },
+        examples: {
+            curl_single: 'curl "http://localhost:3004/api/v1/extract/example.com?snapshots=3"',
+            curl_multiple: 'curl -X POST "http://localhost:3004/api/v1/extract" -H "Content-Type: application/json" -d \'{"domains":["example.com","test.com"],"snapshots":5}\'',
+            curl_urls: 'curl "http://localhost:3004/api/v1/urls/example.com?limit=50"'
+        },
+        response_format: {
+            success: true,
+            data: "Response data",
+            meta: {
+                timestamp: "ISO timestamp",
+                additional_metadata: "Varies by endpoint"
+            }
+        }
+    });
+});
+
+// =============================================================================
+// LEGACY WEB INTERFACE ENDPOINTS (for backward compatibility)
+// =============================================================================
 
 // API endpoint for URL discovery
 app.get('/api/discover-urls/:domain', async (req, res) => {
